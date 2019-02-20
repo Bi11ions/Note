@@ -357,11 +357,11 @@ Redis 持久化的有两种方式：
 ### 定期删除
 
 	定期删除是指 Redis 默认是每隔 100ms 就随机抽取一些设置了过期时间的 key，检查是否过期，如果过期就删除。
-
+	
 	特殊情况：若一次性向 Redis 存储 10w 个key，都设置了过期时间，每隔几百毫秒，这样需要检查10w个key，性能消耗巨大，可能导致服务宕机。
-
+	
 	**注意：**这里不是每隔100ms 就遍历所有设置过期时间的 key，实际上***Redis每隔 100ms 随机抽取一些 key 来检查和删除的。***
-
+	
 	定期删除可能会导致很多过期的 key 到了时间并没有被删除掉，此时就需要依赖惰性删除了。
 
 ### 惰性删除
@@ -454,7 +454,7 @@ redis replication -> 主从架构 -> 读写分离 -> 水平扩容支撑读高并
 ### Redis 主从复制的核心原理
 
 	当启动一个 slave node 的时候，它会发送一个 `PSYNC` 命令给 master node。
-
+	
 	如果 slave node 是初次连接到 master node，那么会触发一次 `full resynchronization` **全量复制**。此时 master node 会启动一个后台线程，开始生成一份 `RDB` 快照文件，同时还会**将从客户端 client 新收到的所有的写命令缓存在内存中**。`RDB` 文件生成完毕后，master 会将这个 `RDB` 发送给 slave，slave 会先**写入本地磁盘，然后再从本地磁盘加载到内存**中，接着 master 会将内存中缓存的写命令发送到 slave，slave 也会同步这些数据。slave node 如果跟 master node 有网络故障，断开了连接，连接之后 master node 仅会复制给 slave 部分缺少的数据。
 
 ![](./image/Redis/redis-master-slave-replication.png)
@@ -462,7 +462,7 @@ redis replication -> 主从架构 -> 读写分离 -> 水平扩容支撑读高并
 #### 主从复制的端点续传
 
 	从 Redis 2.8 开始，就支持主从复制的断点续传，如果主从复制过程中，网络连接断掉了，那么可以接着上次复制复制下去，而不是从头开始复制一份。
-
+	
 	master node 会在内存中维护一个 backlog，master 和 slave 都会保存一个 replica offset 还有一个 master run id，offset	就保存在 backlog 中的。如果 master 和 slave 网络连接断掉，slave 会让 master 从上次 replica offset 开始继续复制，如果又找到对应的 offset，那么就会执行一次 `resynchronization`。
 
 > 如果根据 host+ip 定位 master node，是不靠谱，如果 master node 重启或者数据出现了变化，那么 slave node 应该根据不同的 run id 区分。
@@ -485,7 +485,7 @@ repl-diskless-sync-delay 5
 ### 复制的完整流程
 
 	slave node 启动时，会在自己本地保存 master node 的信息，包括 master node 的 `host` 和 `ip`，但是复制流程没开始。
-
+	
 	slave node 内部有个定时任务，每秒检查是否有新的 master node 要连接和复制，如果发现，就跟 master node 建立 socket 网络连接。然后 slave node 发送 `ping` 命令给 master node。如果 master 设置了 requirepass，那么 slave node 必须发送 masterauth 的口令进行认证。 master node **第一次执行全量复制**，将所有数据发送给 slave node。而在后续，master node 持续将写命令**异步复制**给 slave node。
 
 ![](./image/Redis/redis-master-slave-replication-detail.png)
@@ -589,3 +589,109 @@ sentinel，中文名为哨兵。哨兵是 Redis 集群机构中非常重要的�
 ```
 
 配置 `quorum = 2`，如果  M1 所在机器宕机了，那么三个哨兵还剩下2个，s2 和 s3 可以一致认为 master 宕机了，然后选举出一个来执行故障转移，同时 3 个哨兵的 `majority` 是 2，所以还剩下的 2 个哨兵运行着，就可以允许执行故障转移。
+
+
+
+#### Redis 哨兵主备切换的数据丢失问题
+
+##### 两种情况会导致数据丢失
+
+	主备切换的过程中，可能会导致数据的丢失：
+
+* **异步复制导致的数据丢失：**因为 master -> slave 的复制是异步的，所以可能有部分数据还没复制到 slave，master 就宕机了，此时就会导致数据的丢失。
+
+![](./image/Redis/async-replication-data-lose-case.png)
+
+* **脑裂导致的数据丢失：** 
+
+  	在脑裂发生时，某个 slave 被切换成 master，但是可能 client 还没来切换到新的 master，还继续向旧的master 写数据。因此**旧的 master 恢复时，会被作为一个新的 master 上去**，自己的数据会清空，重新从新的 master 复制数据。而新的 master 并没有后来 client 写入的数据，因此，这部分数据也就丢失了。
+
+  	***脑裂*** ：某个 master 所在的机器突然**脱离了正常的网络**，跟其他的 slave 机器不能连接，但是实际上 master 还在运行着。此时哨兵可能就会 **认为** master 宕机了，然后开始选举，将其它的 slave 选举为新的 master。 这个时候，整个分布式系统中，就存在了两个 master，称之为脑裂。
+
+![](./image/Redis/redis-cluster-split-brain.png)
+
+##### 数据丢失问题的解决方案
+
+进行如下配置：
+
+```shell
+min-slaves-to-write 1
+min-slaves-max-lag 10
+```
+
+上述表示：要求至少有一个 slave，数据复制和同步的延迟不能超过 10 秒。
+
+如果说一旦所有的 slave，数据复制和同步的延迟都超过了 10 秒钟，那么这个时候，master 就不会再接收任何请求了。
+
+* **减少异步复制数据的丢失：**有了 `min-slaves-max-log` 这个配置，就可以确保说，一旦 slave 复制数据和 ack 延迟太长了，就认为可能 master 宕机后损失的数据太多了，那么就拒绝写请求，这样可以把 master 宕机时由于部分数据未同步到 slave 导致的数据丢失损失降低到可控范围内。
+* **减少脑裂的数据丢失：**如果一个 master 出现了脑裂，跟其它 slave 丢了连接，那么上面两个配置可以确保说，如果不能继续给指定数量的 slave 发送数据，而且 slave 超过 10 秒没有给自己 ack 消息，那么就直接拒绝客户端的写请求。因此在脑裂场景下，最多就丢失 10 秒数据。
+
+#### sdown 和 odown 转换机制
+
+* **sdown ** 是主观宕机，就一个哨兵如果自己觉得一个 master 宕机了，那么就是主观宕机
+* **odown** 是客观宕机，如果 `quorum` 数量的哨兵都觉得一个 master 宕机了，那么就是客观宕机。
+
+sdown 达成的条件很简单，如果一个哨兵 ping 一个 master，超过了 `is-master-down-after-milliseconds` 指定的毫秒数之后，就主观认为 master 宕机了；
+
+如果 一个哨兵在指定时间内，收到了 `quorum` 数量的其他哨兵也认为那个 master 是 sdown 的消息，那么就认为是 odown 了。
+
+#### 哨兵集群的自动发现机制
+
+哨兵互相之间的发现，是通过 Redis 的 **pub/sub** 系统实现的，每个哨兵都会往 `_sentinel_:hello` 这个 channel 里发送消息，这时候所有的其他哨兵都可以消费到这个消息，并感知到其他哨兵的存在。
+
+每隔 2s，每个哨兵都会往自己监控的某个 master+slaves 对应的 `_sentienl_:hello` channel里 **发送一个消息**，内容是自己的 **host、ip 和 runid** 还有对这个 master 的监控配置。
+
+每个哨兵也会去 **监听** 自己监控的每个 master+slaves 对应的 `sentinel_:hello` channel，然后感知到同样监听这个 master+slaves 的其他哨兵的存在。
+
+每个哨兵还会跟其他哨兵交换对 master 的监控配置，互相进行监控配置的同步。
+
+#### Slave 配置的自动纠正
+
+哨兵会负责自动纠正 slave 的一些配置，比如 slave 如果要成为潜在 master 候选人，哨兵会确保 slave 复制到现有 master 的数据；如果 slave 连接到了一个错误的 master 上，比如故障转移之后，那么哨兵会确保它们连接到了正确的 master 上。
+
+#### Slave -> Master 选举算法
+
+如果一个 master 被认为 down 了，而且 `majority` 数量的哨兵都允许主备切换，那么某个哨兵就会执行主备切换操作，此时先要选举一个 slave 来，会考虑 slave 的一些信息：
+
+* 跟 master 断开连接的时长
+* slave 的优先级
+* 复制 offset 
+* run id
+
+如果一个 slave 跟 master 断开连接的时间超过了 `down-after-milliseconds` 的 10 倍，外加 master 宕机的时长，那么认为 slave 就被认为不适合选举为 master
+
+```shell
+(down-after-milliseconds * 10) + milliseonds_since_master_is_in_SDOWN_state
+```
+
+接下来会对 slave 进行排序：
+
+* 按照 slave 优先级进行排序，slave priority 越低，优先级就越高。
+* 如果 slave priority 相同，那么看
+
+* 如果上面两个条件都相同，那么选择一个 run id 比较小的那个 slave
+
+#### quorum 和 majority
+
+**quorum** : 确认 master **odown** 的最少的**哨兵数量**
+
+**majority：**授权进行主从切换的最少的哨兵数量
+
+每次一个哨兵要做主备切换，首先需要 `quonum` 数量的哨兵认为 odown，然后选举出一个哨兵来做切换，这个哨兵还得得到 `majority` 哨兵的授权，才能正式执行切换。
+
+* `quonum` < `majority`，比如 5 个哨兵，`majority` 就是 3，`quorum` 设置为 2，那么最终共有 3 个哨兵授权就可以执行切换。
+* `quonum` >= `majority`，那么必须 `quonum` 数量的哨兵都授权，比如 5 个哨兵，`quonum` 是 5，那么必须 5 个哨兵都同意授权，才能执行切换
+
+#### configuration epoch
+
+哨兵会对一套 Redis cluster + slaves 进行监控，有相应的监控的配置。
+
+执行切换的那个哨兵，会从要切换到的新的 master（slave -> master） 那里得到一个 configuration epoch，这就是一个 version 号，每次切换的 version 号都必须是唯一的。
+
+如果第一个选举出的哨兵切换失败了，那么其他的哨兵，会等待 `failover-timeout` 事件，然后接替继续执行切换，此时会重新获取一个新的 configuration epoch，作为新的 version 号。
+
+#### configuration 传播
+
+哨兵完成切换之后，会在做自己本地更新生成最新的 master 配置，然后同步给其他的哨兵，就是通过上文提到的 `pub/sub` 消息机制。
+
+所以在之前的 version 号就很重要了，因为各种消息都是通过一个 **channel** 去发布和监听的，所以一个哨兵完成一次新的切换之后，新的 master 配置是跟着新的 version 号的。其他的哨兵都是根据版本号的大小来更新自己的 master 配置的。
