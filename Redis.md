@@ -340,14 +340,14 @@ Redis 持久化的有两种方式：
 
   	多个 socket 可能会并发不同的操作，每个操作对应不同的文件事件，但是 IO 多路复用程序会监听多个 socket，会将 socket 产生的事件放入队列中排队，事件分派器每次从队列中取出一个事件，把该事件交给对应的事件处理器处理。
 
-  	客户端与 Redis 的一次通信过程：
+    	客户端与 Redis 的一次通信过程：
 
   ![](./image/Redis/redis-single-thread-model.png)
 
   	客户端 socket01 向 Redis 的 sever socket 请求建立连接，此时 server socket 会产生一个 `AE_READABLE` 事件，IO多路复用程序监听到 sever socket 产生的事件后，将该事件压入队列中。文件事件分派器从队列中获取该事件，交给**连接应答处理器**。连接应答处理器会创建一个能与客户端通信的 socket01，并将该 socket01 的 `AE_READABLE` 事件与命令处理器关联。
-
+	
   	假设此时客户端发送了一个 `set key value` 请求，此时Redis 中的 socket01 会产生`AE_READABLE` 事件，IO 多路复用程序将事件压入队列，此时事件分派器从队列中获取到该事件，由于前面 socket01 的 `AE_READABLE` 事件已经与命令请求处理器关联，因此事件分派器将事件交给命令请求处理器来处理。命令请求处理器获取 socket01 的 `key value` 并在自己内存中完成 `key value` 的设置。操作完成后，它会将 socket01 的 `AE_WRITABLE` 事件与命令回复处理器关联。
-
+	
   	如果此时客户端准备好接收返回结果了，那么 Redis 中的 socket01 会产生一个 `AE_WRITABLE` 事件与命令回复处理器的关联。
 
 ## Redis 过期策略
@@ -606,7 +606,7 @@ sentinel，中文名为哨兵。哨兵是 Redis 集群机构中非常重要的�
 
   	在脑裂发生时，某个 slave 被切换成 master，但是可能 client 还没来切换到新的 master，还继续向旧的master 写数据。因此**旧的 master 恢复时，会被作为一个新的 master 上去**，自己的数据会清空，重新从新的 master 复制数据。而新的 master 并没有后来 client 写入的数据，因此，这部分数据也就丢失了。
 
-  	***脑裂*** ：某个 master 所在的机器突然**脱离了正常的网络**，跟其他的 slave 机器不能连接，但是实际上 master 还在运行着。此时哨兵可能就会 **认为** master 宕机了，然后开始选举，将其它的 slave 选举为新的 master。 这个时候，整个分布式系统中，就存在了两个 master，称之为脑裂。
+    	***脑裂*** ：某个 master 所在的机器突然**脱离了正常的网络**，跟其他的 slave 机器不能连接，但是实际上 master 还在运行着。此时哨兵可能就会 **认为** master 宕机了，然后开始选举，将其它的 slave 选举为新的 master。 这个时候，整个分布式系统中，就存在了两个 master，称之为脑裂。
 
 ![](./image/Redis/redis-cluster-split-brain.png)
 
