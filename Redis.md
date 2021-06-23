@@ -4,6 +4,10 @@
 
 Redis 是一种支持是一种支持 Key-Value 等**多种数据结构**的存储系统。
 
+## Redis 单线程问题
+
+**单线程指的是网络请求模块使用了一个线程**（所以不需考虑并发安全性），即一个线程处理所有网络请求，**其他模块仍用了多个线程**。
+
 ## 使用 Redis 的原因
 
 解决两个问题： **高性能、高并发**。
@@ -143,6 +147,69 @@ zrank board zhaoliu
 
 ![](./image/Redis/ZSetOperation.png)
 
+## Redis 操作命令以及时间复杂度
+
+| 类型       | 指令                                             | 功能                                                         | 时间复杂度        |
+| ---------- | ------------------------------------------------ | ------------------------------------------------------------ | ----------------- |
+| **String** | SET                                              | 为一个key设置value，可以配合EX/PX参数指定key的有效期，通过NX/XX参数针对key是否存在的情况进行区别操作 | O(1)              |
+|            | GET                                              | 获取某个key对应的value                                       | O(1)              |
+|            | GETSET                                           | 为一个key设置value，并返回该key的原value                     | O(1)              |
+|            | MSET                                             | 为多个 key 设置 value                                        | O(N)              |
+|            | MSETNX                                           | 同MSET，如果指定的key中有**任意一个**已存在，则不进行任何操作 | O(N)              |
+|            | MGET                                             | 获取多个key对应的value                                       | O(N)              |
+|            | INCR                                             | 将key对应的value值自增1，并返回自增后的值。只对可以转换为整型的String数据起作用。 | O(1)              |
+|            | INCRBY                                           | 将key对应的value值自增指定的整型数值，并返回自增后的值。只对可以转换为整型的String数据起作用。 | O(1)              |
+|            | DECR/DECRBY                                      | 同INCR/INCRBY，自增改为自减。                                | O(1)              |
+| **List**   | LPUSH                                            | 向指定List的左侧（头部）插入一个或者多个元素，返回插入后的 List 长度，此时 N 为插入元素的数量。 | O(N)              |
+|            | RPUSH                                            | 同LPUSH，向指定List的右侧（即尾部）插入1或多个元素           | O(N)              |
+|            | LPOP                                             | 从指定List的左侧（即头部）移除一个元素并返回                 | O(1)              |
+|            | RPOP                                             | 从指定List的左侧（即头部）移除一个元素并返回                 | O(1)              |
+|            | LPUSHX/RPUSHX                                    | 与LPUSH/RPUSH类似，区别在于，LPUSHX/RPUSHX**操作的key如果不存在，则不会进行任何操作** | O(N)              |
+|            | LLEN                                             | 返回List的长度                                               | O(1)              |
+|            | LRANGE                                           | 返回指定List中指定范围的元素（双端包含，即`LRANGE key 0 10`会返回11个元素）<br />应尽可能控制一次获取的元素数量，一次获取过大范围的List元素会导致延迟，同时对长度不可预知的List，避免使用`LRANGE key 0 -1`这样的完整遍历操作。 | O(N)              |
+|            | LINDEX**（谨慎使用，遍历整个List）**             | 返回指定List指定index上的元素，如果index越界，返回nil。index数值是回环的，即-1代表List最后一个位置，-2代表List倒数第二个位置. | **O(N)**          |
+|            | LSET**（谨慎使用，遍历整个List）**               | 将指定List指定index上的元素设置为value，如果index越界则返回错误，时间复杂度O(N)，如果操作的是头/尾部的元素，则**时间复杂度为O(1)** | **O(N)**/**O(1)** |
+|            | LINSERT**（谨慎使用）遍历整个List**              | 向指定List中指定元素之前/之后插入一个新元素，并返回操作后的List长度。如果指定的元素不存在，返回-1。如果指定key不存在，不会进行任何操作 | **O(N)**          |
+| Hash       | HSET                                             | 将key对应的Hash中的field设置为value。如果该Hash不存在，会自动创建一个 | O(1)              |
+|            | HGET                                             | 返回指定Hash中的filed字段的值                                | O(1)              |
+|            | HMSET/HMGET                                      | 同HSET与HGET，可以批量操作同一个key下的多个filed，此时N为操作filed的数量 | O(N)              |
+|            | HSETNX                                           | 同HSET，但如field已经存在，HSETNX不会进行任何操作            | O(1)              |
+|            | HEXISTS                                          | 判断指定Hash中field是否存在，存在返回1，不存在返回0          | O(1)              |
+|            | HDEL                                             | 删除指定Hash中的field（1个或多个），N为操作的field数量       | O(N)              |
+|            | HINCRBY                                          | 同INCRBY命令，对指定Hash中的一个field进行INCRBY              | O(1)              |
+|            | HGETALL**（谨慎使用，完整遍历对应Hash）**        | 返回指定Hash中所有的field-value对。返回结果为数组，数组中field和value交替出现 | **O(N)**          |
+|            | HKEYS/HVALS**（谨慎使用，完整遍历对应Hash）**    | 返回指定Hash中所有的field/value                              | **O(N)**          |
+| Set        | SADD                                             | 向指定Set中添加1个或多个member，如果指定Set不存在，会自动创建一个。N为添加的member个数 | O(N)              |
+|            | SREM                                             | 指定Set中移除1个或多个member，N为移除的member个数            | O(N)              |
+|            | SRANDMENBER                                      | 从指定Set中随机返回1个或多个member，N为返回的member个数      | O(N)              |
+|            | SPOP                                             | 从指定Set中随机移除并返回count个member，N为移除的member个数  | O(N)              |
+|            | SCARD                                            | 返回指定Set中的member个数                                    | O(1)              |
+|            | SISMEMBER                                        | 判断指定的value是否存在于指定Set中                           | O(1)              |
+|            | SMOVE                                            | 将指定member从一个Set移至另一个Set                           | O(1)              |
+|            | SMEMBERS**（谨慎使用）**                         | 返回指定SET中所有的member                                    | **O(N)**          |
+|            | SUNION/SUNIONSTORE**（谨慎使用）**               | 计算多个Set的**并集**并返回/存储至另一个Set中，N为参与计算的所有集合的总member数 | **O(N)**          |
+|            | SINTER/SINTERSTORE**（谨慎使用）**               | 计算多个Set的**交集**并返回/存储至另一个Set中，N为参与计算的所有集合的总member数 | O(N)              |
+|            | SDIFF/SDIFFSTORE**（谨慎使用）**                 | 计算1个Set与1或多个Set的**差集**并返回/存储至另一个Set中，N为参与计算的所有集合的总member数 | O(N)              |
+| Sorted Set | ZADD                                             | 向指定Sorted Set中添加1个或多个member，M为添加的member数量，N为Sorted Set中的member数量 | O(Mlog(N))        |
+|            | ZREM                                             | 从指定Sorted Set中删除1个或多个member，M为删除的member数量，N为Sorted Set中的member数量 | O(Mlog(N))        |
+|            | ZCOUNT                                           | 返回指定Sorted Set中指定score范围内的member数量              | O(log(N))         |
+|            | ZCARD                                            | 返回指定Sorted Set中的member数量                             | O(1)              |
+|            | 返回指定Sorted Set中指定member的score            | O(1)                                                         |                   |
+|            | ZRANK/ZREVRANK                                   | 返回指定member在Sorted Set中的排名，ZRANK返回按**升序排序**的排名，ZREVRANK则返回按**降序排序**的排名。 | O(log(N))         |
+|            | ZINCREBY                                         | 同INCRBY，对指定Sorted Set中的指定member的score进行自增      | O(log(N))         |
+|            | ZRANGE/ZREVRANGE**（谨慎使用）**                 | 返回指定Sorted Set中指定排名范围内的所有member，ZRANGE为按score升序排序，ZREVRANGE为按score降序排序，M为本次返回的member数 | O(log(N) + M)     |
+|            | ZRANGEBYSCORE/ZREVRANGEBYSOCRE**（谨慎使用）**   | 返回指定Sorted Set中指定score范围内的所有member，返回结果以升序/降序排序，min和max可以指定为-inf和+inf，代表返回所有的member。 | O(log(N) + M)     |
+|            | ZREMRANGEBYRANK/ZREMRANGEBYSCORE**（谨慎使用）** | 移除Sorted Set中指定排名范围/指定score范围内的所有member     | O(log(N) + M)     |
+
+**总结：谨慎使用下述命令**
+
+> **List**： `lindex`、`lset`、`linsert` （上述的三个命令的算法效率较低，需要对List进行遍历，命令的耗时无法预估，在List长度大的情况下耗时会明显增加，应谨慎使用。）
+> **Hash**： `hgetall`、`hkeys`、`hvals`（都会对Hash进行完整遍历，Hash中的field数量与命令的耗时线性相关，对于尺寸不可预知的Hash，
+> 应严格避免使用上面三个命令，而改为使用HSCAN命令进行游标式的遍历）
+> **Set**： `smembers`、`sunion`、`sunionstore`、`sinter`、`sinterstore`、`sdiff`、`sdiffstore`（应谨慎使用，特别是在参与计算的Set尺寸不可知的情况下，应严格避免使用。
+> 可以考虑通过SSCAN命令遍历获取相关Set的全部member）
+> **Sorted Set**： `zrange`、`zrevrange`、`zrangebyscore`、`zrevrangebyscore`、`zremrangebyrank`、`zremrangebyscore`
+
 ## Redis 服务相关的命令
 
 ```shell
@@ -253,13 +320,12 @@ Redis 持久化的有两种方式：
 
 	Memcached 只支持简单的 key-value 结构的数据，
 	
-	Redis 支持 String、Hash、List、Set、ZSet 结构。 **Redis 内部使用一个 redisObject 对象来表示所有的 key 和 value**
+	Redis 支持 String、Hash、List、Set、ZSet 结构。 Redis 内部使用一个 redisObject 对象来表示所有的 key 和 value
 
 ### 三、内存使用效率
 
 	key-value 时，Memcached 更胜一筹，
-	
-	    Redis 使用 Hash 结构时，则 Redis 效率更高
+	Redis 使用 Hash 结构时，则 Redis 效率更高
 
 ### 四、Redis 支持服务端的操作
 
@@ -326,9 +392,9 @@ Redis 持久化的有两种方式：
 
 ## Redis 的线程模型
 
-	Redis 内部使用文件事件处理器 `file event handler`，这个文件事件处理器是单线程的，所以 Redis 才叫做单线程的模型，它采用 **IO 多路复用机制** 同时监听多个 socket，根据 socket 上的事件来选择对应的事件处理器进行处理。
-	
-	文件事件处理器包含 4 个部分：
+	Redis 内部使用文件事件处理器 `file event handler`，这个文件事件处理器是单线程的，所以 Redis 才叫做单线程的模型，它采用 IO 多路复用机制 同时监听多个 socket，根据 socket 上的事件来选择对应的事件处理器进行处理。
+
+文件事件处理器包含 4 个部分：
 
 * 多个 socket
 
@@ -344,10 +410,10 @@ Redis 持久化的有两种方式：
 
   ![](./image/Redis/redis-single-thread-model.png)
 
-  	客户端 socket01 向 Redis 的 sever socket 请求建立连接，此时 server socket 会产生一个 `AE_READABLE` 事件，IO多路复用程序监听到 sever socket 产生的事件后，将该事件压入队列中。文件事件分派器从队列中获取该事件，交给**连接应答处理器**。连接应答处理器会创建一个能与客户端通信的 socket01，并将该 socket01 的 `AE_READABLE` 事件与命令处理器关联。
-	
+  	客户端 socket01 向 Redis 的 sever socket 请求建立连接，此时 server socket 会产生一个 `AE_READABLE` 事件，IO多路复用程序监听到 sever socket 产生的事件后，将该事件压入队列中。文件事件分派器从队列中获取该事件，交给连接应答处理器。连接应答处理器会创建一个能与客户端通信的 socket01，并将该 socket01 的 `AE_READABLE` 事件与命令处理器关联。
+		
   	假设此时客户端发送了一个 `set key value` 请求，此时Redis 中的 socket01 会产生`AE_READABLE` 事件，IO 多路复用程序将事件压入队列，此时事件分派器从队列中获取到该事件，由于前面 socket01 的 `AE_READABLE` 事件已经与命令请求处理器关联，因此事件分派器将事件交给命令请求处理器来处理。命令请求处理器获取 socket01 的 `key value` 并在自己内存中完成 `key value` 的设置。操作完成后，它会将 socket01 的 `AE_WRITABLE` 事件与命令回复处理器关联。
-	
+		
   	如果此时客户端准备好接收返回结果了，那么 Redis 中的 socket01 会产生一个 `AE_WRITABLE` 事件与命令回复处理器的关联。
 
 ## Redis 过期策略
@@ -373,6 +439,38 @@ Redis 持久化的有两种方式：
 	即使是 定期删除+惰性删除，也会有漏洞，假设此时定期删除漏掉了很多过期的 key，调用者在获取也没有检查，也没走惰性删除，此时如果有大量 key 堆积在内存，也有可能会使 Redis 内存块耗尽。所以此时需要 Redis 使用 **内存淘汰机制**
 
 ### 内存淘汰机制
+
+#### 配置
+
+我们通过配置redis.conf中的maxmemory这个值来开启内存淘汰功能。
+
+```
+maxmemory
+```
+
+值得注意的是，maxmemory为0的时候表示我们对Redis的内存使用没有限制。
+
+```
+maxmemory-policy noeviction
+```
+
+#### 动态改配置命令
+
+设置最大内存
+
+```
+config set maxmemory 100000
+```
+
+设置淘汰策略
+
+```
+config set maxmemory-policy noeviction
+```
+
+#### 内存淘汰策略
+
+根据应用场景，选择淘汰策略
 
 	Redis 内存淘汰机制分为以下几种：（假设此时当内存不足以容纳新写数据时）
 
@@ -453,9 +551,9 @@ redis replication -> 主从架构 -> 读写分离 -> 水平扩容支撑读高并
 
 ### Redis 主从复制的核心原理
 
-	当启动一个 slave node 的时候，它会发送一个 `PSYNC` 命令给 master node。
-	
-	如果 slave node 是初次连接到 master node，那么会触发一次 `full resynchronization` **全量复制**。此时 master node 会启动一个后台线程，开始生成一份 `RDB` 快照文件，同时还会**将从客户端 client 新收到的所有的写命令缓存在内存中**。`RDB` 文件生成完毕后，master 会将这个 `RDB` 发送给 slave，slave 会先**写入本地磁盘，然后再从本地磁盘加载到内存**中，接着 master 会将内存中缓存的写命令发送到 slave，slave 也会同步这些数据。slave node 如果跟 master node 有网络故障，断开了连接，连接之后 master node 仅会复制给 slave 部分缺少的数据。
+> 当启动一个 slave node 的时候，它会发送一个 `PSYNC` 命令给 master node。
+>
+> 如果 slave node 是初次连接到 master node，那么会触发一次 `full resynchronization` **全量复制**。此时 master node 会启动一个后台线程，开始生成一份 `RDB` 快照文件，同时还会**将从客户端 client 新收到的所有的写命令缓存在内存中**。`RDB` 文件生成完毕后，master 会将这个 `RDB` 发送给 slave，slave 会先**写入本地磁盘，然后再从本地磁盘加载到内存**中，接着 master 会将内存中缓存的写命令发送到 slave，slave 也会同步这些数据。slave node 如果跟 master node 有网络故障，断开了连接，连接之后 master node 仅会复制给 slave 部分缺少的数据。
 
 ![](./image/Redis/redis-master-slave-replication.png)
 
@@ -695,3 +793,296 @@ sdown 达成的条件很简单，如果一个哨兵 ping 一个 master，超过�
 哨兵完成切换之后，会在做自己本地更新生成最新的 master 配置，然后同步给其他的哨兵，就是通过上文提到的 `pub/sub` 消息机制。
 
 所以在之前的 version 号就很重要了，因为各种消息都是通过一个 **channel** 去发布和监听的，所以一个哨兵完成一次新的切换之后，新的 master 配置是跟着新的 version 号的。其他的哨兵都是根据版本号的大小来更新自己的 master 配置的。
+
+## Redis集群的几种实现方式如下：
+
+- 客户端分片，如redis的Java客户端jedis也是支持的，使用一致性hash
+- 基于代理的分片，如codis和Twemproxy
+- 路由查询， redis-cluster
+
+### 客户端分片
+
+Redis Sharding是Redis Cluster出来之前，业界普遍使用的多Redis实例集群方法。其主要思想是采用**哈希算法**将Redis数据的key进行散列，通过hash函数，特定的key会映射到特定的Redis节点上。java redis客户端驱动jedis，支持Redis Sharding功能，即ShardedJedis以及结合缓存池的ShardedJedisPool。
+
+Redis Sentinel提供了主备模式下Redis监控、故障转移功能达到系统的高可用性。在主Redis宕机时，备Redis接管过来，上升为主Redis，继续提供服务。主备共同组成一个Redis节点，通过自动故障转移，保证了节点的高可用性。
+
+客户端sharding技术其优势在于非常简单，服务端的Redis实例彼此独立，相互无关联，每个Redis实例像单服务器一样运行，非常容易线性扩展，系统的灵活性很强。
+
+客户端sharding的劣势也是很明显的。由于sharding处理放到客户端，规模进一步扩大时给运维带来挑战。客户端sharding不支持动态增删节点。服务端Redis实例群拓扑结构有变化时，每个客户端都需要更新调整。连接不能共享，当应用规模增大时，资源浪费制约优化。
+
+### 基于代理的分片
+
+客户端发送请求到一个代理组件，代理解析客户端的数据，并将请求转发至正确的节点，最后将结果回复给客户端。
+
+该模式的特性如下：
+
+- 透明接入，业务程序不用关心后端Redis实例，切换成本低。
+- Proxy 的逻辑和存储的逻辑是隔离的。
+- 代理层多了一次转发，性能有所损耗。
+
+### 路由查询
+
+Redis Cluster是一种服务器Sharding技术，3.0版本开始正式提供。Redis Cluster并没有使用一致性hash，而是采用slot(槽)的概念，一共分成16384个槽。将请求发送到任意节点，接收到请求的节点会将查询请求发送到正确的节点上执行。当客户端操作的key没有分配到该node上时，就像操作单一Redis实例一样，当客户端操作的key没有分配到该node上时，Redis会返回转向指令，指向正确的node，这有点儿像浏览器页面的302 redirect跳转。
+
+Redis集群，要保证16384个槽对应的node都正常工作，如果某个node发生故障，那它负责的slots也就失效，整个集群将不能工作。为了增加集群的可访问性，官方推荐的方案是将node配置成主从结构，即一个master主节点，挂n个slave从节点。这时，如果主节点失效，Redis Cluster会根据选举算法从slave节点中选择一个上升为主节点，整个集群继续对外提供服务。
+
+特点：
+
+- 无中心架构，支持动态扩容，对业务透明
+- 具备Sentinel的监控和自动Failover能力
+- 客户端不需要连接集群所有节点,连接集群中任何一个可用节点即可
+- 高性能，客户端直连redis服务，免去了proxy代理的损耗
+
+缺点：
+
+* 运维也很复杂，数据迁移需要人工干预
+* 只能使用0号数据库
+* 不支持批量操作
+* 分布式逻辑和存储模块耦合等。
+
+## Redis Cluster
+
+- 自动将数据进行分片，每个 master 上放一部分数据
+- 提供内置的高可用支持，部分 master 不可用时，还是可以继续工作的
+
+在 redis cluster 架构下，每个 redis 要放开两个端口号，比如一个是 6379，另外一个就是 加1w 的端口号，比如 16379。
+
+16379 端口号是用来进行节点间通信的，也就是 cluster bus 的东西，cluster bus 的通信，用来进行故障检测、配置更新、故障转移授权。cluster bus 用了另外一种二进制的协议，`gossip` 协议，用于节点间进行高效的数据交换，占用更少的网络带宽和处理时间。
+
+#### 安装与配置
+
+官方推荐集群至少需要六个节点，即三主三从。六个节点的配置文件基本相同，只需要修改端口号。
+
+```conf
+port 7000
+cluster-enabled yes  #开启集群模式
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+```
+
+**配置 JedisClusterConfig**
+
+```java
+@Configuration
+public class JedisClusterConfig {
+    private static Logger logger = LoggerFactory.getLogger(JedisClusterConfig.class);
+
+    @Value("${redis.cluster.nodes}")
+    private String clusterNodes;
+
+    @Value("${redis.cluster.timeout}")
+    private int timeout;
+
+    @Value("${redis.cluster.max-redirects}")
+    private int redirects;
+    
+    @Autowired
+    private JedisPoolConfig jedisPoolConfig;
+
+    @Bean
+    public RedisClusterConfiguration getClusterConfiguration() {
+        Map<String, Object> source = new HashMap();
+
+        source.put("spring.redis.cluster.nodes", clusterNodes);
+        logger.info("clusterNodes: {}", clusterNodes);
+        source.put("spring.redis.cluster.max-redirects", redirects);
+        return new RedisClusterConfiguration(new MapPropertySource("RedisClusterConfiguration", source));
+    }
+
+    @Bean
+    public JedisConnectionFactory getConnectionFactory() {
+        JedisConnectionFactory jedisConnectionFactory = new JedisConnectionFactory(getClusterConfiguration());
+        jedisConnectionFactory.setTimeout(timeout);
+        return jedisConnectionFactory;
+    }
+
+    @Bean
+    public JedisClusterConnection getJedisClusterConnection() {
+        return (JedisClusterConnection) getConnectionFactory().getConnection();
+    }
+
+    @Bean
+    public RedisTemplate getRedisTemplate() {
+        RedisTemplate clusterTemplate = new RedisTemplate();
+        clusterTemplate.setConnectionFactory(getConnectionFactory());
+        clusterTemplate.setKeySerializer(new StringRedisSerializer());
+        clusterTemplate.setDefaultSerializer(new GenericJackson2JsonRedisSerializer());
+        return clusterTemplate;
+
+    }
+
+}
+```
+
+可以配置密码，cluster对密码支持不太友好，如果对集群设置密码，那么requirepass和masterauth都需要设置，否则发生主从切换时，就会遇到授权问题。
+
+**yml 配置**
+
+```yaml
+redis:
+  cluster:
+    enabled: true
+    timeout: 2000
+    max-redirects: 8
+    nodes: 127.0.0.1:7000,127.0.0.1:7001
+```
+
+主要配置了redis cluster的节点、超时时间等。
+
+**使用 RedisTemplate**
+
+```java
+@RunWith(SpringRunner.class)
+@SpringBootTest
+public class RedisConfigTest {
+    @Autowired
+    RedisTemplate redisTemplate;
+    
+    @Test
+    public void clusterTest() {
+      redisTemplate.opsForValue().set("foo", "bar");
+      System.out.println(redisTemplate.opsForValue().get("foo"));
+    }
+}
+```
+
+#### Redis Cluster 内部通信机制
+
+集群元数据维护方式：
+
+* 集中式
+
+  集中式是将集群元数据（节点信息、故障等等）几种存储在某个节点上。集中式元数据集中存储的一个典型代表，就是大数据领域的 `storm`。它是分布式的大数据实时计算引擎，是集中式的元数据存储的结构，底层基于 zookeeper（分布式协调的中间件）对所有元数据进行存储维护。
+
+  **好处**：
+
+  * 元数据的读取和更新，时效性非常好，一旦元数据出现了变更，就立即更新到集中式的存储中，其它节点读取的时候就可以感知到；
+
+  **缺点**：
+
+  * 所有的元数据的更新压力全部集中在一个地方，可能会导致元数据的存储有压力。
+
+  ![](./image/Redis/元数据维护集中式.png)
+
+* gossip 协议
+
+  redis 维护集群元数据采用另一个方式， `gossip` 协议，所有节点都持有一份元数据，不同的节点如果出现了元数据的变更，就不断将元数据发送给其它的节点，让其它节点也进行元数据的变更。
+
+  **优点**：
+
+  * 元数据的更新比较分散，不是集中在一个地方，更新请求会陆陆续续，打到所有节点上去更新，降低了压力；
+
+  **缺点**：
+
+  * 元数据的更新有延时，可能导致集群中的一些操作会有一些滞后。
+
+  ![](./image/Redis/元数据维护gossip协议.png)
+
+**基本通信原理**
+
+Redis Cluster 节点采用 gossip 协议进行通信。
+
+#### redis-gossip
+
+- 10000 端口
+  每个节点都有一个专门用于节点间通信的端口，就是自己提供服务的端口号+10000，比如 7001，那么用于节点间通信的就是 17001 端口。每个节点每隔一段时间都会往另外几个节点发送 `ping` 消息，同时其它几个节点接收到 `ping` 之后返回 `pong`。
+- 交换的信息
+  信息包括故障信息，节点的增加和删除，hash slot 信息 等等。
+
+#### gossip 协议
+
+gossip 协议包含多种消息，包含 `ping`,`pong`,`meet`,`fail` 等等。
+
+- meet：某个节点发送 meet 给新加入的节点，让新节点加入集群中，然后新节点就会开始与其它节点进行通信。
+
+```conf
+redis-trib.rb add-node
+```
+
+其实内部就是发送了一个 gossip meet 消息给新加入的节点，通知那个节点去加入我们的集群。
+
+- ping：每个节点都会频繁给其它节点发送 ping，其中包含自己的状态还有自己维护的集群元数据，互相通过 ping 交换元数据。
+- pong：返回 ping 和 meeet，包含自己的状态和其它信息，也用于信息广播和更新。
+- fail：某个节点判断另一个节点 fail 之后，就发送 fail 给其它节点，通知其它节点说，某个节点宕机啦。
+
+**ping 消息深入**
+
+ping 时要携带一些元数据，如果很频繁，可能会加重网络负担。
+
+每个节点每秒会执行 10 次 ping，每次会选择 5 个最久没有通信的其它节点。当然如果发现某个节点通信延时达到了 `cluster_node_timeout / 2`，那么立即发送 ping，避免数据交换延时过长，落后的时间太长了。比如说，两个节点之间都 10 分钟没有交换数据了，那么整个集群处于严重的元数据不一致的情况，就会有问题。所以 `cluster_node_timeout` 可以调节，如果调得比较大，那么会降低 ping 的频率。
+
+每次 ping，会带上自己节点的信息，还有就是带上 1/10 其它节点的信息，发送出去，进行交换。至少包含 `3` 个其它节点的信息，最多包含`总结点-2` 个其它节点的信息。
+
+#### 分布式寻址算法
+
+- hash 算法（大量缓存重建）
+- 一致性 hash 算法（自动缓存迁移）+ 虚拟节点（自动负载均衡）
+- redis cluster 的 hash slot 算法
+
+**hash 算法**
+
+来了一个 key，首先计算 hash 值，然后对节点数取模。然后打在不同的 master 节点上。
+
+**缺点**：一旦某一个 master 节点宕机，所有请求过来，都会基于最新的剩余 master 节点数去取模，尝试去取数据。这会导致**大部分的请求过来，全部无法拿到有效的缓存**，导致大量的流量涌入数据库。
+
+**一致性 hash 算法**
+
+一致性 hash 算法将整个 hash 值空间组织成一个虚拟的圆环，整个空间按顺时针方向组织，下一步将各个 master 节点（使用服务器的 ip 或主机名）进行 hash。这样就能确定每个节点在其哈希环上的位置。
+
+来了一个 key，首先计算 hash 值，并确定此数据在环上的位置，从此位置沿环**顺时针“行走”**，遇到的第一个 master 节点就是 key 所在位置。
+
+在一致性哈希算法中，如果一个节点挂了，受影响的数据仅仅是此节点到环空间前一个节点（沿着逆时针方向行走遇到的第一个节点）之间的数据，其它不受影响。增加一个节点也同理。
+
+**缺点**：一致性哈希算法在节点太少时，容易因为节点分布不均匀而造成**缓存热点**的问题。
+
+为了解决这种热点问题，一致性 hash 算法引入了**虚拟节点机制**，即对每一个节点计算多个 hash，每个计算结果位置都放置一个虚拟节点。这样就实现了数据的均匀分布，负载均衡。
+
+<img src="./image/Redis/一致性hash算法.png" style="zoom:50%;" />
+
+**redis cluster 的 hash slot 算法**
+
+edis cluster 有固定的 `16384` 个 hash slot，对每个 `key` 计算 `CRC16` 值，然后对 `16384` 取模，可以获取 key 对应的 hash slot。
+
+redis cluster 中每个 master 都会持有部分 slot，比如有 3 个 master，那么可能每个 master 持有 5000 多个 hash slot。
+
+**hash slot 让 node 的增加和移除很简单**：
+
+* 增加一个 master，就将其他 master 的 hash slot 移动部分过去
+* 减少一个 master，就将它的 hash slot 移动到其他 master 上去。
+
+移动 hash slot 的成本是非常低的。客户端的 api，可以对指定的数据，让他们走同一个 hash slot，通过 `hash tag` 来实现。
+
+任何一台机器宕机，另外两个节点，不影响的。因为 key 找的是 hash slot，不是机器。
+
+![](./image/Redis/RedisHashSlot.png)
+
+#### Redis cluster 的高可用与主备切换原理
+
+redis cluster 的高可用的原理，几乎跟哨兵是类似的
+
+**判断节点宕机**
+
+如果一个节点认为另外一个节点宕机，那么就是 `pfail`，**主观宕机**。如果多个节点都认为另外一个节点宕机了，那么就是 `fail`，**客观宕机**，跟哨兵的原理几乎一样，sdown，odown。
+
+在 `cluster-node-timeout` 内，某个节点一直没有返回 `pong`，那么就被认为 `pfail`。
+
+如果一个节点认为某个节点 `pfail` 了，那么会在 `gossip ping` 消息中，`ping` 给其他节点，如果**超过半数**的节点都认为 `pfail` 了，那么就会变成 `fail`。
+
+**从节点过滤**
+
+对宕机的 master node，从其所有的 slave node 中，选择一个切换成 master node。
+
+检查每个 slave node 与 master node 断开连接的时间，如果超过了 `cluster-node-timeout * cluster-slave-validity-factor`，那么就**没有资格**切换成 `master`。
+
+**从节点选举**
+
+每个从节点，都根据自己对 master 复制数据的 offset，来设置一个选举时间，offset 越大（复制数据越多）的从节点，选举时间越靠前，优先进行选举。
+
+所有的 master node 开始 slave 选举投票，给要进行选举的 slave 进行投票，如果大部分 master node`（N/2 + 1）`都投票给了某个从节点，那么选举通过，那个从节点可以切换成 master。
+
+从节点执行主备切换，从节点切换为主节点。
+
+**与哨兵比较**
+
+整个流程跟哨兵相比，非常类似，所以说，redis cluster 功能强大，直接集成了 replication 和 sentinel 的功能。

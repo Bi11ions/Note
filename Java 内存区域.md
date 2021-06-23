@@ -2,7 +2,7 @@
 
 ## JVM 知识图谱
 
-![](E:\Code\Note\image\JVM\JVMStruct.png)
+![](./image\JVM\JVMStruct.png)
 
 ## 常见面试题
 
@@ -27,13 +27,13 @@ Java 虚拟机在执行 Java 程序的过程中会把它管理的内存划分为
 
 **JDK 1.8 之前：**
 
-![](E:\Code\Note\image\JVM\JDK1.6Struct.png)
+![](./image\JVM\JDK1.6Struct.png)
 
 
 
 **JDK 1.8：**
 
-![](E:\Code\Note\image\JVM\JDK1.8Struct.png)
+![](./image\JVM\JDK1.8Struct.png)
 
 **线程私有的：**
 
@@ -106,11 +106,11 @@ Java 堆是垃圾收集器管理的主要区域，因此也被称之为 GC 堆�
 2. 老生代（Old Generation）
 3. 永生代（Permanent Generation）
 
-![](E:\Code\Note\image\JVM\JDK7HeapStruct.jpg)
+![](./image\JVM\JDK7HeapStruct.jpg)
 
 JDK 8 版本之后**方法区（HotSpot 的永久代）**被彻底移除了（JDK 7 就已经开始了），取而代之的是元空间，元空间使用的是直接内存。
 
-![](E:\Code\Note\image\JVM\JDK8HeapStruct.jpg)
+![](./image\JVM\JDK8HeapStruct.jpg)
 
 
 
@@ -176,7 +176,7 @@ JDK 1.8 的时候，方法区（HotSpot 的永久代）被彻底移除了（JDK1
 
 #### 2.5.3 为什么要将永久代 (PermGen) 替换为元空间 (MetaSpace) 呢?
 
-整个永久代有一个 JVM 本身设置固定大小上限，无法进行调整，而元空间使用的是直接内存，受本机可用内存的限制，并且永远不会得到 `java.lang.OutOfMemoryError`。你可以使用 `-XX：MaxMetaspaceSize` 标志设置最大元空间大小，默认值为 unlimited，这意味着它只受系统内存的限制。`-XX：MetaspaceSize` 调整标志定义元空间的初始大小如果未指定此标志，则 Metaspace 将根据运行时的应用程序需求动态地重新调整大小。
+整个永久代有一个 JVM 本身设置固定大小上限，无法进行调整，而元空间使用的是直接内存，受本机可用内存的限制，并且永远不会得到 `java.lang.OutOfMemoryError`。你可以使用 `-XX:MaxMetaspaceSize` 标志设置最大元空间大小，默认值为 unlimited，这意味着它只受系统内存的限制。`-XX:MetaspaceSize` 调整标志定义元空间的初始大小如果未指定此标志，则 Metaspace 将根据运行时的应用程序需求动态地重新调整大小。
 
 当然这只是其中一个原因，还有很多底层的原因.
 
@@ -188,7 +188,7 @@ JDK 1.8 的时候，方法区（HotSpot 的永久代）被彻底移除了（JDK1
 
 **JDK1.7 及之后版本的 JVM 已经将运行时常量池从方法区中移了出来，在 Java 堆（Heap）中开辟了一块区域存放运行时常量池。**
 
-![](E:\Code\Note\image\JVM\RuntimeConstantPool.png)
+![](./image\JVM\RuntimeConstantPool.png)
 
 ### 2.7 直接内存
 
@@ -208,7 +208,7 @@ JDK 4 中新加入的 NIO（New Input/Output） 类，引入了一种基于通�
 
 下图便是 Java 对象创建的过程，分为五步：
 
-![](E:\Code\Note\image\JVM\CreateObjectStep.png)
+![](./image\JVM\CreateObjectStep.png)
 
 **Step1**：**类加载检查**
 
@@ -224,7 +224,7 @@ JDK 4 中新加入的 NIO（New Input/Output） 类，引入了一种基于通�
 
 选择以上两种方式的哪一种，取决于 Java 堆内存是否规整。而 Java 堆内存是否规整，取决于 GC 收集器的算法是**“标记-清除”**，还是**“标记-整理”**（也称作“标记-压缩”），值得注意的是，复制算法内存也是规整的。
 
-![](E:\Code\Note\image\JVM\memoryGivenWay.png)
+![](./image\JVM\memoryGivenWay.png)
 
 **内存分配并发问题**
 
@@ -263,11 +263,11 @@ HotSpot 虚拟机的对象头包括两部分信息，**第一部分用于存储�
 
 中存储的就是对象的句柄地址，而句柄中包含了对象实例数据与类型数据各自的具体地址信息；
 
-![](E:\Code\Note\image\JVM\handleStruct.png)
+![](./image\JVM\handleStruct.png)
 
 2. **直接指针**：如果使用直接指针访问，那么 Java 堆对象的布局中就必须考虑如何放置访问类型数据的相关信息，而 reference 中存储的直接就是对象的地址。
 
-![](E:\Code\Note\image\JVM\directPointerStruct.png)
+![](./image\JVM\directPointerStruct.png)
 
 **两种对象访问方式各有优势，使用句柄来访问最大的好处是 reference 中存储的是稳定的句柄地址，在对象被移动时只会改变句柄汇总的实例数据指针，而 reference 本身不需要修改。**
 
@@ -294,7 +294,7 @@ System.out.println(str2==str3);//false
 
 记住一点：**只要使用 new 方法，便需要创建新的对象。**
 
-![](E:\Code\Note\image\JVM\StringMemoryStruct.png)
+![](./image\JVM\StringMemoryStruct.png)
 
 String 类型的常量池比较特殊，它的主要使用方法有两种：
 
@@ -324,7 +324,7 @@ String 类型的常量池比较特殊，它的主要使用方法有两种：
 		  System.out.println(str4 == str5);//false
 ```
 
-![](E:\Code\Note\image\JVM\StringConstantPool.png)
+![](./image\JVM\StringConstantPool.png)
 
 
 

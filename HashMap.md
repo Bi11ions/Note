@@ -40,7 +40,7 @@ HashMap 可以说是使用频率最高的处理键值映射的数据结构，它
 
 HashMap 基于散列表实现，使用**拉链法**处理碰撞，在 JDK8 中，当链表长度大于 8 时转为**红黑树**存储，基本结构如下：
 
-![](E:\Code\Note\image\public\structOfHashMap.jpg)
+![](./image\public\structOfHashMap.jpg)
 
 
 
@@ -229,6 +229,57 @@ tableSizeFor 方法的计算过程图，这里可以参照文首提到的tableSi
 
 对于 HashMap 来说，负载因子是一个很重要的参数，该参数反应了 HashMap 桶数组的使用情况（假设键值对节点均匀分布在桶数组中）。通过调节负载因子，可使 HashMap 时间和空间复杂度上有不同的表现。当我们调低负载因子时，HashMap 所能容纳的键值对数量变少。扩容时，重新将键值对存储新的桶数组里，键的键之间产生的碰撞会下降，链表长度变短。此时，HashMap 的增删改查等操作的效率将会变高，这里是典型的拿空间换时间。相反，如果增加负载因子（负载因子可以大于1），HashMap 所能容纳的键值对数量变多，空间利用率高，但碰撞率也高。这意味着链表长度变长，效率也随之降低，这种情况是拿时间换空间。至于负载因子怎么调节，这个看使用场景了。一般情况下，我们用默认值就可以了。
 
+#### 3.1.2 负载因子(loadFactor)为什么是0.75?
+
+在JDK源码中:
+
+```java
+/**
+ * The load factor used when none specified in constructor.
+ */
+static final float DEFAULT_LOAD_FACTOR = 0.75f;
+```
+
+那么，为什么选择0.75呢？背后有什么考虑？为什么不是1，不是0.8？不是0.5，而是0.75呢？
+
+在JDK的官方文档中，有这样一段描述描述：
+
+> As a general rule, the default load factor (.75) offers a good tradeoff between time and space costs. Higher values decrease the space overhead but increase the lookup cost (reflected in most of the operations of the HashMap class, including get and put).
+
+大概意思是：一般来说，默认的负载因子(0.75)在时间和空间成本之间提供了很好的权衡。更高的值减少了空间开销，但增加了查找成本(反映在HashMap类的大多数操作中，包括get和put)。
+
+试想一下，如果我们把负载因子设置成1，容量使用默认初始值16，那么表示一个HashMap需要在”满了”之后才会进行扩容。
+
+那么在HashMap中，最好的情况是这16个元素通过hash算法之后分别落到了16个不同的桶中，否则就必然发生哈希碰撞。而且随着元素越多，哈希碰撞的概率越大，查找速度也会越低。
+
+**0.75的数学依据**
+
+另外，我们可以通过一种数学思维来计算下这个值是多少合适。
+
+我们假设一个bucket空和非空的概率为0.5，我们用s表示容量，n表示已添加元素个数。
+
+用s表示添加的键的大小和n个键的数目。根据二项式定理，桶为空的概率为:
+
+```java
+P(0) = C(n, 0) * (1/s)^0 * (1 - 1/s)^(n - 0)
+```
+
+因此，如果桶中元素个数小于以下数值，则桶可能是空的：
+
+```java
+log(2)/log(s/(s - 1))
+```
+
+当s趋于无穷大时，如果增加的键的数量使P(0) = 0.5，那么n/s很快趋近于log(2):
+
+```
+log(2) ~ 0.693...
+```
+
+所以，合理值大概在0.7左右。根据HashMap的扩容机制，他会保证capacity的值永远都是2的幂，`临界值（threshold） = 负载因子（loadFactor） * 容量（capacity）`。那么，为了保证`负载因子（loadFactor） * 容量（capacity）`的结果是一个整数，这个值是0.75(3/4)比较合理，因为这个数和任何2的幂乘积结果都是整数。
+
+[本文档来源](http://www.hollischuang.com/archives/4491)
+
 ### 3.2 查找
 
 HashMap 的查找操作比较简单，查找步骤与原理篇介绍一致，即先定位键值对所在的桶的位置，然后再对链表或红黑树进行查找。通过这两步即可完成查找，该操作相关代码如下：
@@ -273,7 +324,7 @@ first = tab[(n - 1) & hash]
 
 这里通过`(n - 1)& hash`即可算出桶的在桶数组中的位置，HashMap 中桶数组的大小 length 总是2的幂，此时，`(n - 1) & hash` 等价于对 length 取余。但取余的计算效率没有位运算高，所以`(n - 1) & hash`也是一个小的优化。举个例子说明一下吧，假设 hash = 185，n = 16。计算过程示意图如下：
 
-![](E:\Code\Note\image\public\(n - 1) & hash.jpg)
+![](./image\public\(n - 1) & hash.jpg)
 
 在上面源码中，除了查找相关逻辑，还有一个计算 hash 的方法。这个方法源码如下：
 
@@ -293,7 +344,7 @@ static final int hash(Object key) {
 
 这样做有两个好处，我们再看一下上面求余的计算图，图中的 hash 是由键的 hashCode 产生。计算余数时，由于 n 比较小，hash 只有低4位参与了计算，高位的计算可以认为是无效的。这样导致了计算结果只与低位信息有关，高位数据没发挥作用。为了处理这个缺陷，我们可以上图中的 hash 高4位数据与低4位数据进行异或运算，即 `hash ^ (hash >>> 4)`。通过这种方式，**高位数据与低位数据进行异或，以此加大低位信息的随机性，变相的让高位数据参与到计算中**。此时的计算过程如下：
 
-![](E:\Code\Note\image\public\hashOfHashMap.jpg)
+![](./image\public\hashOfHashMap.jpg)
 
 在 Java 中，hashCode 方法产生的 hash 是 int 类型，32 位宽。前16位为高位，后16位为低位，所以要右移16位。
 
@@ -402,11 +453,11 @@ abstract class HashIterator {
 
 如上面的源码，遍历所有的键时，首先要获取键集合`KeySet`对象，然后再通过 KeySet 的迭代器`KeyIterator`进行遍历。KeyIterator 类继承自`HashIterator`类，核心逻辑也封装在 HashIterator 类中。HashIterator 的逻辑并不复杂，在初始化时，HashIterator 先从桶数组中找到包含链表节点引用的桶。然后对这个桶指向的链表进行遍历。遍历完成后，再继续寻找下一个包含链表节点引用的桶，找到继续遍历。找不到，则结束遍历。举个例子，假设我们遍历下图的结构：
 
-![](E:\Code\Note\image\public\iteratorExample.jpg)
+![](./image\public\iteratorExample.jpg)
 
 HashIterator 在初始化时，会先遍历桶数组，找到包含链表节点引用的桶，对应图中就是3号桶。随后由 nextNode 方法遍历该桶所指向的链表。遍历完3号桶后，nextNode 方法继续寻找下一个不为空的桶，对应图中的7号桶。之后流程和上面类似，直至遍历完最后一个桶。以上就是 HashIterator 的核心逻辑的流程，对应下图：
 
-![](E:\Code\Note\image\public\iteratorExample2.jpg)
+![](./image\public\iteratorExample2.jpg)
 
 遍历上图的最终结果是 `19 -> 3 -> 35 -> 7 -> 11 -> 43 -> 59`，为了验证正确性，简单写点测试代码跑一下看看。测试代码如下：
 
@@ -439,6 +490,20 @@ result:
 ```
 
 ### 3.4 插入
+
+![](./image/javaBasic/HashMapPutValProcess.png)
+
+①.判断键值对数组table[i]是否为空或为null，否则执行resize()进行扩容；
+
+②.根据键值key计算hash值得到插入的数组索引i，如果table[i]==null，直接新建节点添加，转向⑥，如果table[i]不为空，转向③；
+
+③.判断table[i]的首个元素是否和key一样，如果相同直接覆盖value，否则转向④，这里的相同指的是hashCode以及equals；
+
+④.判断table[i] 是否为treeNode，即table[i] 是否是红黑树，如果是红黑树，则直接在树中插入键值对，否则转向⑤；
+
+⑤.遍历table[i]，判断链表长度是否大于8，大于8的话把链表转换为红黑树，在红黑树中执行插入操作，否则进行链表的插入操作；遍历过程中若发现key已经存在直接覆盖value即可；
+
+⑥.插入成功后，判断实际存在的键值对数量size是否超多了最大容量threshold，如果超过，进行扩容。
 
 #### 3.4.1 插入逻辑分析
 
@@ -509,7 +574,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
 }
 ```
 
-JDK8 在插入链表时采用的是尾插入法，也就是顺序插入，而 JDK7 使用的是头插法，逆序插入。
+JDK8 在插入链表时采用的是尾插入法，也就是顺序插入，而 JDK7 使用的是头插法，逆序插入[多线程操作时，put 操作形成循环链表，get 操作导致报错](https://www.cnblogs.com/orange-time/articles/11226730.html)。
 
 插入操作的入口方法是 `put(K,V)`，但核心逻辑在`V putVal(int, K, V, boolean, boolean)` 方法中。putVal 方法主要做了这么几件事情：
 
@@ -662,7 +727,7 @@ if (newThr == 0) {...}
 
 这里简单说明一下移位导致的溢出情况，当 loadFactor小数位为 0，整数位可被2整除且大于等于8时，在某次计算中就可能会导致 newThr 溢出归零。见下图：
 
-![](E:\Code\Note\image\public\newThr.jpg)
+![](./image\public\newThr.jpg)
 
 分支二：
 
@@ -682,35 +747,35 @@ if (newThr == 0) {...}
 
 我们都知道往底层数据结构中插入节点时，一般都是先通过模运算计算桶位置，接着把节点放入桶中即可。事实上，我们可以把重新映射看做插入操作。在 JDK 1.7 中，也确实是这样做的。但在 JDK 1.8 中，则对这个过程进行了一定的优化，逻辑上要稍微复杂一些。在详细分析前，我们先来回顾一下 hash 求余的过程：
 
-![](E:\Code\Note\image\public\hashStep1.jpg)
+![](./image\public\hashStep1.jpg)
 
 
 
 上图中，桶数组大小 n = 16，hash1 与 hash2 不相等。但因为只有后4位参与求余，所以结果相等。当桶数组扩容后，n 由16变成了32，对上面的 hash 值重新进行映射：
 
-![](E:\Code\Note\image\public\hashStep2.jpg)
+![](./image\public\hashStep2.jpg)
 
 
 
 扩容后，参与模运算的位数由4位变为了5位。由于两个 hash 第5位的值是不一样，所以两个 hash 算出的结果也不一样。上面的计算过程并不难理解，继续往下分析。
 
-![](E:\Code\Note\image\public\hashStep3.jpg)
+![](./image\public\hashStep3.jpg)
 
 假设我们上图的桶数组进行扩容，扩容后容量 n = 16，重新映射过程如下:
 
 依次遍历链表，并计算节点 `hash & oldCap` 的值。如下图所示:
 
-![](E:\Code\Note\image\public\hashStep4.jpg)
+![](./image\public\hashStep4.jpg)
 
 
 
 如果值为0，将 loHead 和 loTail 指向这个节点。如果后面还有节点 hash & oldCap 为0的话，则将节点链入 loHead 指向的链表中，并将 loTail 指向该节点。如果值为非0的话，则让 hiHead 和 hiTail 指向该节点。完成遍历后，可能会得到两条链表，此时就完成了链表分组：
 
-![](E:\Code\Note\image\public\hashStep5.jpg)
+![](./image\public\hashStep5.jpg)
 
 最后再将这两条链接存放到相应的桶中，完成扩容。如下图：
 
-![](E:\Code\Note\image\public\hashStep6.jpg)
+![](./image\public\hashStep6.jpg)
 
 从上图可以发现，重新映射后，两条链表中的节点顺序并未发生变化，还是保持了扩容前的顺序。以上就是 JDK 1.8 中 HashMap 扩容的代码讲解。另外再补充一下，JDK 1.8 版本下 HashMap 扩容效率要高于之前版本。如果大家看过 JDK 1.7 的源码会发现，JDK 1.7 为了防止因 hash 碰撞引发的拒绝服务攻击，在计算 hash 过程中引入随机种子。以增强 hash 的随机性，使得键值对均匀分布在桶数组中。在扩容过程中，相关方法会根据容量判断是否需要生成新的随机种子，并重新计算所有节点的 hash。而在 JDK 1.8 中，则通过引入红黑树替代了该种方式。从而避免了多次计算 hash 的操作，提高了扩容效率。
 
@@ -785,7 +850,7 @@ TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
 
 回到上面的源码中，我们继续看一下 treeifyBin 方法。该方法主要的作用是将普通链表转成为由 TreeNode 型节点组成的链表，并在最后调用 treeify 是将该链表转为红黑树。TreeNode 继承自 Node 类，所以 TreeNode 仍然包含 next 引用，原链表的节点顺序最终通过 next 引用被保存下来。我们假设树化前，链表结构如下：
 
-![](E:\Code\Note\image\public\beforeToTree.jpg)
+![](./image\public\beforeToTree.jpg)
 
 HashMap 在设计之初，并没有考虑到以后会引入红黑树进行优化。所以并没有像 TreeMap 那样，要求键类实现 comparable 接口或提供相应的比较器。但由于树化过程需要比较两个键对象的大小，在键类没有实现 comparable 接口的情况下，怎么比较键与键之间的大小了就成了一个棘手的问题。为了解决这个问题，HashMap 是做了三步处理，确保可以比较出两个键的大小，如下：
 
@@ -797,7 +862,7 @@ tie break 是网球术语，可以理解为加时赛的意思，起这个名字�
 
 通过上面三次比较，最终就可以比较出孰大孰小。比较出大小后就可以构造红黑树了，最终构造出的红黑树如下：
 
-![](E:\Code\Note\image\public\afterToTree.jpg)
+![](./image\public\afterToTree.jpg)
 
 
 
@@ -873,7 +938,7 @@ final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
 
 从源码上可以看得出，重新映射红黑树的逻辑和重新映射链表的逻辑基本一致。不同的地方在于，重新映射后，会将红黑树拆分成两条由 TreeNode 组成的链表。如果链表长度小于 UNTREEIFY_THRESHOLD，则将链表转换成普通链表。否则根据条件重新将 TreeNode 链表树化。举个例子说明一下，假设扩容后，重新映射上图的红黑树，映射结果如下：
 
-![](E:\Code\Note\image\public\remapping.jpg)
+![](./image\public\remapping.jpg)
 
 ##### 红黑树链化
 
@@ -987,7 +1052,6 @@ final Node<K,V> removeNode(int hash, Object key, Object value,
 ### 3.7 总结
 
 本章对 HashMap 常见操作相关代码进行了详细分析，并在最后补充了一些其他细节。在本章中，插入操作一节的内容说的最多，主要是因为插入操作涉及的点特别多，一环扣一环。包含但不限于“table 初始化、扩容、树化”等，总体来说，插入操作分析起来难度还是很大的。好在，最后分析完了。
-
 
 
 

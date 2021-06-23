@@ -1,4 +1,4 @@
-# 深入理解Java线程池：ThreadPoolExecutor
+# .深入理解Java线程池：ThreadPoolExecutor
 
 ## 线程池介绍
 
@@ -16,9 +16,13 @@
   * 提高线程的可管理性。线程是稀缺资源，如果无限制的创建，不经会消耗系统的资源，也会降低系统的稳定性，使用线程池可以为进行统一的分配，调优和监控。
 * **Java中线程池是用`ThreadPoolExecutor` 类来实现的**
 
-#### 线程池的类图
+### 线程池的类图
 
-![](E:\Code\Note\image\ThreadPoolExecutor\类图.jpg)
+![](.\image\ThreadPoolExecutor\类图.jpg)
+
+### 线程池执行流程
+
+![](.\image\ThreadPoolExecutor\execute方法执行流程.png)
 
 ### Executor 框架接口
 
@@ -114,7 +118,7 @@ executor.execute();
 
 下图为线程池的状态转换过程：
 
-![](E:\Code\Note\image\ThreadPoolExecutor\线程池状态转换.png)
+![](.\image\ThreadPoolExecutor\线程池状态转换.png)
 
 ### ctl的相关方法
 
@@ -275,7 +279,7 @@ executor.execute();
 
    `execute`方法执行流程如下：
 
-   ![](E:\Code\Note\image\ThreadPoolExecutor\execute方法执行流程.png)
+   ![](.\image\ThreadPoolExecutor\execute方法执行流程.png)
 
    ### addWoker() 方法
 
@@ -690,7 +694,7 @@ private void processWorkerExit(ThreadPoolExecutor.Worker w, boolean completedAbr
 
 至此，`processWorkerExit`执行完之后，工作线程被销毁，以上就是整个工作线程的生命周期，从 `execute` 方法开始， `Worker`使用`ThreadFactory`创建新的工作线程，`runWorker`通过`getTask`获取任务，然后执行任务，如果`getTask`返回null，进入`processWorkerExit`方法，整个线程结束，如下图所示：
 
-![](E:\Code\Note\image\ThreadPoolExecutor\线程生命周期.png)
+![](.\image\ThreadPoolExecutor\线程生命周期.png)
 
 ### tryTerminate 方法
 
@@ -862,4 +866,175 @@ public List<Runnable> shutdownNow() {
 * 在获取任务时，要通过线程池的状态来判断应该结束工作线程还是阻塞线程等待新的任务，也结束了为什么关闭线程池时要中断工作线程，以及为什么每一个`worker`都需要`lock`
 
 在想线程池提交任务时，除了`execute()`方法，还有一个`submit()`方法，`submit`方法会返回一个`Future`对象用于获取返回值。
+
+## 常见的 BlockQueue
+
+![](./image/ThreadPoolExecutor/常见的阻塞队列.png)
+
+### 1. ArrayBlockingQueue
+
+这是一个由数组结构组成的有界阻塞队列。首先看下它的构造方法，有三个构造方法
+
+![](./image/ThreadPoolExecutor/ArrayBlockingQueue构造方法.png)
+
+> 第一个可以指定队列大小
+>
+> 第二个还可以指定是否公平，不指定的话，默认非公平。 基于 ReentrantLock 的公平锁与非公平锁实现。简单理解就是，ReentrantLock 内部会维护一个有先后顺序的等待队列，假如有五个任务一起过来，都被阻塞了。如果是公平的，则等待队列中等待最久的任务就会先进入阻塞队列。如果是非公平的，那么这五个线程就需要抢锁，谁先抢到，谁就先进入阻塞队列。
+>
+> 第三个可以初始化一个集合元素到队列中
+
+另外，**ArrayBlockingQueue 没有实现读写分离**，也就是说，读和写是不能同时进行的。因为，它读写时用的是同一把锁，如下图所示：
+
+![](./image/ThreadPoolExecutor/ArrayBlockingQueue锁.png)
+
+### 2. LinkedBlockingQueue
+
+这是一个由链表结构组成的有界阻塞队列，它的构造方法有三个
+
+![](./image/ThreadPoolExecutor/LinkedBlockingQueue构造方法.png)
+
+LinkedBlockingQueue 可以不指定队列的大小，默认值是 Integer.MAX_VALUE 。
+
+> 最好不要这样做，建议指定一个固定大小。因为，如果生产者的速度比消费者的速度大的多的情况下，这会导致阻塞队列一直膨胀，直到系统内存被耗尽（此时，还没达到队列容量的最大值）。
+
+**LinkedBlockingQueue 实现了读写分离**，可以实现数据的读和写互不影响，这在高并发的场景下，对于效率的提高无疑是非常巨大的
+
+![](./image/ThreadPoolExecutor/LinkedBlockingQueue锁.png)
+
+### 3. SynchronusQueue
+
+这是一个没有缓冲的无界队列。
+
+![](./image/ThreadPoolExecutor/SynchronusQueueSize.png)
+
+总是返回 0 ，因为它是一个没有容量的队列。
+
+当执行插入元素的操作时，必须等待一个取出操作。也就是说，put元素的时候，必须等待 take 操作。这适用于并发任务不大，而且生产者和消费者的速度相差不多的场景下，直接把生产者和消费者对接，不用经过队列的入队出队这一系列操作。所以，效率上会高一些。
+
+可以去查看一下 Excutors.newCachedThreadPool 方法用的就是这种队列。
+
+这个队列有两个构造方法，用于传入是公平还是非公平，默认是非公平。
+
+![](./image/ThreadPoolExecutor/SynchronusQueue构造方法.png)
+
+### 4. PriorityBlockingQueue
+
+这是一个支持优先级排序的无界队列。
+
+![](./image/ThreadPoolExecutor/PriorityBlockingQueue构造方法.png)
+
+可以指定初始容量大小（注意初始容量并不代表最大容量），或者不指定，默认大小为 11。也可以传入一个比较器，把元素按一定的规则排序，不指定比较器的话，默认是自然顺序。
+
+PriorityBlockingQueue 是基于二叉树最小堆实现的，每当取元素的时候，就会把**优先级最高的元素取出来。**
+
+### 5. DelayQueue
+
+这是一个带有延迟时间的无界阻塞队列。队列中的元素，只有等延时时间到了，才能取出来。此队列一般用于过期数据的删除，或任务调度。
+
+测试：
+
+首先定义数据元素，需要实现 Delayed 接口，实现 getDelay 方法用于计算剩余时间，和 CompareTo方法用于优先级排序。
+
+```java
+public class DelayData implements Delayed {
+
+    private int id;
+    private String name;
+    //数据到期时间
+    private long endTime;
+    private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public long getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(long endTime) {
+        this.endTime = endTime;
+    }
+
+    public DelayData(int id, String name, long endTime) {
+        this.id = id;
+        this.name = name;
+        //需要把传入的时间endTime 加上当前系统时间，作为数据的到期时间
+        this.endTime = endTime + System.currentTimeMillis();
+    }
+
+    public DelayData() {
+    }
+
+    @Override
+    public long getDelay(TimeUnit unit) {
+        return this.endTime - System.currentTimeMillis();
+    }
+
+    @Override
+    public int compareTo(Delayed o) {
+        return o.getDelay(this.timeUnit) - this.getDelay(this.timeUnit) < 0 ? 1: -1;
+    }
+
+}
+```
+
+模拟三条数据，分别设置不同的过期时间：
+
+```java
+public class ProcessData {
+    public static void main(String[] args) throws InterruptedException {
+        DelayQueue<DelayData> delayQueue = new DelayQueue<>();
+
+        DelayData a = new DelayData(5, "A", 5000);
+        DelayData b = new DelayData(8, "B", 8000);
+        DelayData c = new DelayData(2, "C", 2000);
+
+        delayQueue.add(a);
+        delayQueue.add(b);
+        delayQueue.add(c);
+
+        System.out.println("开始计时时间:" + System.currentTimeMillis());
+        for (int i = 0; i < 3; i++) {
+            DelayData data = delayQueue.take();
+            System.out.println("id:"+data.getId()+"，数据:"+data.getName()+"被移除，当前时间:"+System.currentTimeMillis());
+        }
+    }
+}
+```
+
+最后结果：
+
+```java
+开始计时时间:1583333583216
+id:2，数据:C被移除，当前时间:1583333585216
+id:5，数据:A被移除，当前时间:1583333588216
+id:8，数据:B被移除，当前时间:1583333591216
+```
+
+## ThreadPoolExecutor 四种拒绝策略
+
+`ThreadPoolExecutor.AbortPolicy`:丢弃任务并抛出RejectedExecutionException异常。 **默认策略**
+`ThreadPoolExecutor.DiscardPolicy`：也是丢弃任务，但是不抛出异常。 
+`ThreadPoolExecutor.DiscardOldestPolicy`：丢弃队列最前面的任务，执行后面的任务，不抛出异常。 
+
+`ThreadPoolExecutor.CallerRunsPolicy`：由调用线程池的线程（比如main线程）处理该任务 ，不抛出异常。 
+
+
+
+
+
+
 

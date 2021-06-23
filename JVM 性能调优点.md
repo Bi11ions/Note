@@ -8,7 +8,7 @@
 
 > JAVA_OPTS= "$JAVA_OPTS  -Xmx512m -Xms512m -Xmn170m -Xss128k -XX:NewRatio=4 -XX:SurvivorRatio=4 -XX:MaxPermSize=16m -XX:MaxTenuringThreshold=0"
 
-* `-Xmx512m`：设置Java虚拟机的堆的最大可用内存大小，单位：兆(m)，整个堆大小=年轻代大小 + 年老代大小 + 持久代大小。持久代一般固定大小为64m。堆的不同分布情况，对系统会产生一定的影响。尽可能将对象预留在新生代，减少老年代GC的次数（通常老年回收起来比较慢）。实际工作中，通常将堆的初始值和最大值设置相等，这样可以减少程序运行时进行的垃圾回收次数和空间扩展，从而提高程序性能。
+* `-Xmx512m`：设置Java虚拟机的堆的最大可用内存大小，单位：兆(m)，整个堆大小=年轻代大小 + 年老代大小 + 持久代大小。持久代一般固定大小为64m。堆的不同分布情况，对系统会产生一定的影响。尽可能将对象预留在新生代，减少老年代GC的次数（通常老年回收起来比较慢）。实际工作中，**通常将堆的初始值(-Xms)和最大值(-Xmx)设置相等，这样可以减少程序运行时进行的垃圾回收次数和空间扩展，从而提高程序性能**。
 
 * `-Xms512m`：设置Java虚拟机的堆的初始值内存大小，单位：兆(m)，此值可以设置与-Xmx相同，以避免每次垃圾回收完成后JVM重新分配内存。
 
@@ -52,4 +52,11 @@
 
   * `-XX:+UseConcMarkSweepGC`:代表垃圾回收策略为并发收集器。
 
-* ![](E:\Code\Note\image\public\GC内存分配策略组合.png)
+* ![](./image\public\GC内存分配策略组合.png)
+
+青谷服务：
+
+	>pkill -f saas-uc-1.0.0-SNAPSHOT.jar && nohup java -jar saas-uc-1.0.0-SNAPSHOT.jar --spring.profiles.active=test > /dev/null 2>&1 &	
+	>
+	>nohup java -jar -Xms200m -Xmx200m -Xmn200m qgyun-service-workflow-1.0.3-SNAPSHOT.jar --spring.profiles.active=test > /dev/null 2>&1 &
+

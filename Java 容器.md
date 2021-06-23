@@ -27,7 +27,7 @@
 
 ## Map
 
-![](E:\Code\Note\image\JavaBasic\MapStruct.png)
+![](./image\JavaBasic\MapStruct.png)
 
 * TreeMap：基于红黑树实现。
 * HashMap：基于哈希表实现。
@@ -40,7 +40,7 @@
 
 ## 迭代器模式
 
-![](E:\Code\Note\image\JavaBasic\IteratorStruct.png)
+![](./image\JavaBasic\IteratorStruct.png)
 
 Collection 继承了 Iterable 接口，其中的 iterator() 方法能够产生一个 Iterator 对象，通过这个对象就可以迭代遍历 Collection 中的元素。
 
@@ -98,7 +98,7 @@ public class ArrayList<E> extends AbstractList<E>
 private static final int DEFAULT_CAPACITY = 10;
 ```
 
-![](E:\Code\Note\image\JavaBasic\ArrayListInitStruct.png)
+![](./image\JavaBasic\ArrayListInitStruct.png)
 
 ### 2. 扩容
 
@@ -391,7 +391,7 @@ transient Node<E> first;
 transient Node<E> last;
 ```
 
-![](E:\Code\Note\image\JavaBasic\LinkedListStruct.png)
+![](./image\JavaBasic\LinkedListStruct.png)
 
 ### 2. 与 ArrayList 的比较
 
@@ -415,7 +415,7 @@ transient Entry[] table;
 
 Entry 存储着键值对。它包含四个字段，从 next 字段可以看出 Entry 是一个链表。即数组中的每个位置被当成一个桶，一个桶存放一个链表。 HashMap 使用拉链法来解决冲突，同一个链表中存放哈希值和散列通取模运算结果相同的 Entry.
 
-![](E:\Code\Note\image\JavaBasic\hashMap-Entry.png)
+![](./\image\JavaBasic\hashMap-Entry.png)
 
 
 
@@ -495,7 +495,7 @@ map.put("K3", "V3");
 * 计算键值对所在的桶；
 * 在链表上顺序查找，时间复杂度显然和链表的长度成正比
 
-![](E:\Code\Note\image\JavaBasic\zipperMethod.png)
+![](./image\JavaBasic\zipperMethod.png)
 
 ### 3.put操作
 
@@ -831,7 +831,7 @@ final Segment<K,V>[] segments;
 static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 ```
 
-![](E:\Code\Note\image\JavaBasic\ConcurrentHashMapStruct.png)
+![](./image\JavaBasic\ConcurrentHashMapStruct.png)
 
 ### 2. Set 操作
 
@@ -1049,7 +1049,7 @@ public static void main(String[] args) {
 
 WeakHashMap 的 Entry 继承自 WeakReference，被 WeakReference 关联的对象在下一次垃圾回收时会被回收。
 
-WeakHashMap 主要用来实现缓存，通过使用 WeakHashMap 来引用缓存对象，由 JVM 对这部分缓存进行回收。
+**WeakHashMap 主要用来实现缓存，通过使用 WeakHashMap 来引用缓存对象，由 JVM 对这部分缓存进行回收。**
 
 ```java
 private static class Entry<K,V> extends WeakReference<Object> implements Map.Entry<K,V>
